@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>系统监控</title>
+    <link rel="stylesheet" href="/css/morandi">
+    <style>
+        .container{max-width:900px;margin:20px auto;background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
+        .header{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);margin-bottom:10px}
+        .header h1{font-size:15px;font-weight:700}
+        .hostname{font-size:11px;color:var(--muted)}
+        .update-time{font-size:10px;color:var(--muted);text-align:right}
+        .c-blue{color:#5B7E96}.c-green{color:#6A9B6A}.c-yellow{color:#B8A060}.c-red{color:#B06060}.c-muted{color:#7A7A7A}.c-purple{color:#8A7090}
+
+        /* 3-column monitor grid */
+        .m-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+        .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:3px}
+        .card-label{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+        .card-main{font-size:28px;font-weight:700;line-height:1.1}
+        .card-sub{font-size:12px;color:#7A7A7A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+        .bar-track{height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:6px}
+        .bar-fill{height:100%;border-radius:3px;transition:width .6s}
+        .bar-cpu{background:#5B7E96}.bar-mem{background:#6A9B6A}.bar-disk{background:#B8A060}
+
+        .load-strip{display:flex;gap:6px;margin-top:4px}
+        .load-chip{border:1px solid var(--border);border-radius:8px;padding:6px 8px;text-align:center;flex:1;background:var(--bg)}
+        .load-chip .val{font-size:18px;font-weight:700;color:#B8A060}
+        .load-chip .lbl{font-size:10px;color:var(--muted)}
+
+        .disk-row{display:flex;align-items:center;gap:8px;padding:4px 0}
+        .disk-mount{font-size:12px;color:#7A7A7A;width:48px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .disk-track{flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden}
+        .disk-fill{height:100%;background:#B8A060;border-radius:3px;transition:width .6s}
+        .disk-pct{font-size:12px;color:#B8A060;width:32px;text-align:right;flex-shrink:0;font-weight:600}
+        .disk-size{font-size:11px;color:#7A7A7A;width:56px;text-align:right;flex-shrink:0}
+
+        .net-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0}
+        .net-iface{font-size:12px;color:#7A7A7A}
+        .net-rate{font-size:12px;font-weight:500}
+        .net-rx{color:#6A9B6A}.net-tx{color:#5B7E96}
+
+        /* Weather card */
+        .w-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0}
+        .w-label{font-size:12px;color:#7A7A7A}
+        .w-val{font-size:13px;font-weight:600;color:#4A4A4A}
+        .w-main-row{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:8px}
+        .w-city{font-size:12px;font-weight:600;color:#4A4A4A}
+        .w-temp{font-size:38px;font-weight:700;line-height:1;color:#4A4A4A}
+        .w-desc{font-size:14px;color:#7A7A7A;font-weight:500}
+
+        /* TOP full width */
+        .proc-full{grid-column:1/-1}
+        .proc-layout{display:grid;grid-template-columns:1fr 280px;gap:16px;align-items:start}
+        .proc-table{width:100%;font-size:13px;border-collapse:collapse}
+        .proc-table th{font-weight:600;text-align:left;padding:6px 8px;border-bottom:2px solid var(--border);font-size:12px;color:var(--muted)}
+        .proc-table td{padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:middle}
+        .proc-table tr:last-child td{border-bottom:none}
+        .proc-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#3A3A3A;font-size:13px}
+        .proc-cpu{font-weight:700;text-align:right;color:#5B7E96;font-size:13px}
+
+        /* Per-core CPU bars */
+        .core-section{background:var(--bg);border-radius:8px;padding:10px 12px}
+        .core-title{font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+        .core-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+        .core-label{font-size:12px;color:#7A7A7A;width:36px;flex-shrink:0;font-weight:500}
+        .core-track{flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden}
+        .core-fill{height:100%;border-radius:4px;transition:width .6s;min-width:2px}
+        .core-pct{font-size:12px;font-weight:600;width:44px;text-align:right;flex-shrink:0}
+        .core-idle{color:#6A9B6A}.core-low{color:#8A9B6A}.core-mid{color:#B8A060}.core-high{color:#B06060}
+
+        /* OpenClaw instances */
+        .oc-section{background:var(--bg);border-radius:8px;padding:10px 12px;margin-top:10px}
+        .oc-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+        .oc-name{font-size:13px;font-weight:600;color:#5B7E96;width:44px;flex-shrink:0}
+        .oc-track{flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden}
+        .oc-fill{height:100%;border-radius:4px;transition:width .6s}
+        .oc-pct{font-size:12px;font-weight:600;width:52px;text-align:right;flex-shrink:0}
+        .oc-mem{font-size:10px;color:#aaa;width:52px;text-align:right;flex-shrink:0}
+
+        .footer{text-align:center;padding:12px;font-size:10px;color:var(--muted);border-top:1px solid var(--border);margin-top:10px}
+    </style>
+</head>
+<body>
+    <div class="nav"><a href="/" class="active">📊 监控</a><a href="/files">📁 共享</a><a href="https://clawblog.rseg.club/" target="_blank">📝 博客</a></div>
+
+    <div class="container">
+    <div class="header">
+        <div class="header-left">
+            <h1>🖥️ 系统监控</h1>
+        </div>
+        <div>
+            <div class="hostname" id="hostname">--</div>
+            <div class="update-time" id="updateTime">--</div>
+        </div>
+    </div>
+
+    <div class="m-grid">
+        <!-- CPU -->
+        <div class="card">
+            <div class="card-label">CPU 占用</div>
+            <div class="card-main c-blue" id="cpuPercent">--</div>
+            <div class="bar-track"><div class="bar-fill bar-cpu" id="cpuBar" style="width:0%"></div></div>
+            <div class="card-sub" id="cpuModel">--</div>
+        </div>
+
+        <!-- 内存 -->
+        <div class="card">
+            <div class="card-label">内存占用</div>
+            <div class="card-main c-green" id="memPercent">--</div>
+            <div class="bar-track"><div class="bar-fill bar-mem" id="memBar" style="width:0%"></div></div>
+            <div class="card-sub" id="memInfo">-- / -- GB</div>
+        </div>
+
+        <!-- 系统负载 -->
+        <div class="card">
+            <div class="card-label">系统负载</div>
+            <div class="load-strip">
+                <div class="load-chip"><div class="val" id="load1">--</div><div class="lbl">1m</div></div>
+                <div class="load-chip"><div class="val" id="load5">--</div><div class="lbl">5m</div></div>
+                <div class="load-chip"><div class="val" id="load15">--</div><div class="lbl">15m</div></div>
+            </div>
+            <div class="card-sub" style="margin-top:8px">运行 <span id="uptime">--</span></div>
+        </div>
+
+        <!-- 磁盘 -->
+        <div class="card">
+            <div class="card-label">磁盘占用</div>
+            <div id="diskList"></div>
+        </div>
+
+        <!-- 网络 -->
+        <div class="card">
+            <div class="card-label">网络情况</div>
+            <div id="netList"></div>
+        </div>
+
+        <!-- 威海天气 -->
+        <div class="card">
+            <div class="card-label">🌤️ 威海天气</div>
+            <div style="display:flex;align-items:baseline;gap:10px;margin-top:2px">
+                <div class="card-main" style="font-size:28px" id="wTemp">--°C</div>
+                <div class="card-sub" style="font-size:14px;font-weight:500" id="wDesc">--</div>
+            </div>
+            <div class="card-sub" style="margin-top:4px" id="wDetail">-- / --°C 体感 --°C · 湿度 --% · 风速 --km/h · 紫外线 --</div>
+        </div>
+
+        <!-- TOP进程 full width -->
+        <div class="proc-full card">
+            <div class="card-label">▲ TOP 进程 · 各核心占用</div>
+            <div class="proc-layout">
+                <!-- 左：进程列表 -->
+                <div>
+                    <table class="proc-table">
+                        <thead>
+                            <tr><th style="width:70px">PID</th><th>进程名称</th><th style="width:60px;text-align:right">CPU %</th></tr>
+                        </thead>
+                        <tbody id="procList"></tbody>
+                    </table>
+                </div>
+                <!-- 右：核心占用 + OpenClaw -->
+                <div>
+                    <div class="core-section">
+                        <div class="core-title">CPU 核心</div>
+                        <div id="coreBars"></div>
+                    </div>
+                    <div class="oc-section">
+                        <div class="core-title">🦞 OpenClaw</div>
+                        <div id="ocList"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div><!-- /.container -->
+
+    <div class="footer">OpenClaw · 监控+共享 · 2s刷新</div>
+
+<script>
+function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+function colorPct(v) {
+    if (v > 80) return 'c-red';
+    if (v > 50) return 'c-yellow';
+    return 'c-green';
+}
+function bytesFmt(b) {
+    if (b < 1024) return b + ' B';
+    if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+    if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+    return (b/1073741824).toFixed(1) + ' GB';
+}
+function bps(prev, curr, dt) {
+    return bytesFmt(Math.max(0, curr - prev) / dt) + '/s';
+}
+
+let prevNet = {}, prevT = {};
+
+async function update() {
+    try {
+        const r = await fetch('/api/status');
+        const d = await r.json();
+
+        document.getElementById('hostname').textContent = d.hostname;
+        document.getElementById('updateTime').textContent = d.timestamp.split(' ')[1];
+
+        const cpu = d.cpu.usage;
+        document.getElementById('cpuPercent').textContent = cpu + '%';
+        document.getElementById('cpuPercent').className = 'card-main ' + colorPct(cpu);
+        document.getElementById('cpuBar').style.width = cpu + '%';
+        document.getElementById('cpuModel').textContent = d.cpu.model + ' · ' + d.cpu.cores + '核';
+
+        const mem = d.memory.percent;
+        document.getElementById('memPercent').textContent = mem + '%';
+        document.getElementById('memPercent').className = 'card-main ' + colorPct(mem);
+        document.getElementById('memBar').style.width = mem + '%';
+        document.getElementById('memInfo').textContent = d.memory.used.toFixed(1) + ' / ' + d.memory.total.toFixed(1) + ' GB';
+
+        document.getElementById('load1').textContent = d.load_average[0].toFixed(2);
+        document.getElementById('load5').textContent = d.load_average[1].toFixed(2);
+        document.getElementById('load15').textContent = d.load_average[2].toFixed(2);
+        document.getElementById('uptime').textContent = d.uptime;
+
+        document.getElementById('diskList').innerHTML = d.disks.slice(0,4).map(disk => {
+            return `<div class="disk-row">
+                <div class="disk-mount">${disk.mount}</div>
+                <div class="disk-track"><div class="disk-fill" style="width:${disk.percent}%"></div></div>
+                <div class="disk-pct">${disk.percent}%</div>
+                <div class="disk-size">${disk.used}/${disk.size}</div>
+            </div>`;
+        }).join('');
+
+        const now = Date.now();
+        let netHtml = '';
+        for (const [iface, s] of Object.entries(d.network)) {
+            if (iface === 'lo' || iface === '') continue;
+            const prev = prevNet[iface];
+            if (prev) {
+                const dt = (now - (prevT[iface]||now)) / 1000;
+                netHtml += `<div class="net-row">
+                    <div class="net-iface">${iface}</div>
+                    <div class="net-rate">
+                        <span class="net-rx">↓${bps(prev.rx, s.rx, dt)}</span>&nbsp;
+                        <span class="net-tx">↑${bps(prev.tx, s.tx, dt)}</span>
+                    </div>
+                </div>`;
+            }
+            prevNet[iface] = s;
+            prevT[iface] = now;
+        }
+        document.getElementById('netList').innerHTML = netHtml || '<div class="c-muted" style="font-size:12px">无可用接口</div>';
+
+        // TOP processes - single column
+        const procs = (d.top_processes || []).slice(0, 12);
+        let html = '';
+        for (const p of procs) {
+            const pct = p.cpu_percent;
+            const cls = pct > 80 ? 'c-red' : pct > 50 ? 'c-yellow' : 'c-green';
+            html += `<tr>
+                <td class="c-muted" style="width:70px">${p.pid}</td>
+                <td class="proc-name" title="${p.cmdline}">${p.name}</td>
+                <td class="proc-cpu ${cls}" style="width:60px">${pct}%</td>
+            </tr>`;
+        }
+        document.getElementById('procList').innerHTML = html || '<tr><td colspan="3" class="c-muted" style="text-align:center;padding:16px">--</td></tr>';
+
+        // Per-core CPU bars
+        const cores = d.cpu_per_core || [];
+        let coreHtml = '';
+        for (let i = 0; i < cores.length; i++) {
+            const c = cores[i];
+            const pct = Math.min(100, parseFloat(c.usage || 0).toFixed(1));
+            const cls = pct > 80 ? 'core-high' : pct > 50 ? 'core-mid' : 'core-idle';
+            const fill = pct > 0 ? pct + '%' : '0%';
+            const fillColor = pct > 80 ? '#B06060' : pct > 50 ? '#B8A060' : '#6A9B6A';
+            coreHtml += `<div class="core-bar-row">
+                <div class="core-label">${c.name}</div>
+                <div class="core-track"><div class="core-fill" style="width:${fill};background:${fillColor}"></div></div>
+                <div class="core-pct ${cls}">${pct}%</div>
+            </div>`;
+        }
+        document.getElementById('coreBars').innerHTML = coreHtml || '<div class="c-muted" style="font-size:12px">无可用核心数据</div>';
+
+        // OpenClaw instances
+        const ocData = (d.openclaw || []).sort((a,b) => {
+            const order = {main:0, hjkv:1, jim:2};
+            return (order[a.name] ?? 9) - (order[b.name] ?? 9);
+        });
+        const ocNames = {main:'RSEG', hjkv:'HJKV', jim:'Jim'};
+        let ocHtml = '';
+        for (const oc of ocData) {
+            const color = oc.cpu > 80 ? '#B06060' : oc.cpu > 50 ? '#B8A060' : '#5B7E96';
+            const w = Math.min(100, oc.cpu * 4) + '%';
+            ocHtml += `<div class="oc-row">
+                <div class="oc-name">${ocNames[oc.name] || oc.name}</div>
+                <div class="oc-track"><div class="oc-fill" style="width:${w};background:${color}"></div></div>
+                <div class="oc-pct">${oc.cpu}%</div>
+                <div class="oc-mem">${oc.mem}%</div>
+            </div>`;
+        }
+        document.getElementById('ocList').innerHTML = ocHtml || '<div class="c-muted" style="font-size:12px">无运行中实例</div>';
+
+        prevNet = {...d.network};
+    } catch(e) {
+        console.error(e);
+    }
+}
+
+// Weather
+async function loadWeather() {
+    try {
+        const r = await fetch("/api/weather");
+        const j = await r.json();
+        document.getElementById('wTemp').textContent = j.temp + '°C';
+        document.getElementById('wDesc').textContent = j.desc;
+        document.getElementById('wDetail').textContent = j.mintemp + ' / ' + j.maxtemp + '°C  体感 ' + j.feels + '°C  ·  湿度 ' + j.humidity + '%  ·  风速 ' + j.wind + 'km/h  ·  紫外线 ' + j.uv;
+    } catch(e) { document.getElementById('wTemp').textContent = '--°C'; document.getElementById('wDesc').textContent = '加载失败'; }
+}
+loadWeather();
+
+update();
+setInterval(update, 2000);
+</script>
+</body>
+</html>
